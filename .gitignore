@@ -1,0 +1,42 @@
+# Compiled Object files, Static and Dynamic libs (Shared Objects)
+*.o
+*.a
+*.so
+*.log
+*.rdb
+/tmp/*
+/bin
+debug
+
+# Editor
+*.swp
+ones.log
+main
+# Architecture specific extensions/prefixes
+ctags-5.8/*
+[568vq].out
+
+*.cgo1.go
+*.cgo2.c
+_cgo_defun.c
+_cgo_gotypes.go
+_cgo_export.*
+
+*.exe
+*.test
+*.prof
+
+# Nodejs
+node_modules
+
+dev/
+.idea/
+storage/
+
+# ssl
+ssl.cert
+ssl.csr
+ssl.key
+selfSignCA.crt
+selfSignCA.key
+selfSignCA.srl
