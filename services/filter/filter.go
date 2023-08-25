@@ -4,33 +4,50 @@ import (
 	"be-name/services/common/book"
 	"be-name/services/common/result"
 	"be-name/services/explain"
+	"be-name/services/source"
+	"errors"
 	"fmt"
 	"math/rand"
 	"regexp"
+	"strings"
 	"time"
-	"unicode/utf8"
 )
 
-const beNameCount = 10 //随机十个名字
+const beNameCount = 5 //随机十个名字
 
 func BeName(books []book.Content, surname string, count int) {
 	rand.NewSource(time.Now().UnixNano())
 	var results []result.Info
-	for i := 0; i < beNameCount; i++ {
+	maxNameCount := 10
+	nameCount := 0
+	for {
+		if nameCount == maxNameCount {
+			break
+		}
 		randomIndex := rand.Intn(len(books))
 		re := filterNameByBook(books[randomIndex], surname, count)
 		if len(re.Name) != 0 {
+			nameCount++
 			results = append(results, re)
 		}
 	}
 
+	names := ""
 	for _, item := range results {
 		if len(item.Name) != 0 {
+			names += item.GroupWord + ","
 			fmt.Printf(" %s(%s),出自 %s 的 %s ：\n", item.Name, item.PinYin, item.Author, item.Title)
-			fmt.Println(item.Source)
+			if len(item.Source) != 0 {
+				fmt.Println(item.Source)
+			}
+			fmt.Printf("其中 %s 的含义为：%s \n", item.GroupWord, item.GroupExplain)
+			/*for _, explain := range item.SingleExplain {
+				fmt.Printf("其中 %s 的含义为 %s\n", explain.Word, explain.Explanation)
+			}*/
 			fmt.Println("---------------------------------------------------------------")
 		}
 	}
+	source.ResetReadWord(names)
 }
 
 // book:传入参数为整本书的内容,包含名字、作者、内容(内容实现处理好，为数组，分段落章节)
@@ -52,24 +69,42 @@ func filterNameByBook(book book.Content, surname string, count int) result.Info 
 		}
 		paraIndex := rand.Intn(len(book.Paragraphs) - 1)
 		firstPara := book.Paragraphs[paraIndex]
+		firstPara = strings.Trim(firstPara, " ")
 		firstWord, err := randString(firstPara)
 		if err != nil {
-			break
+			tryCount++
+			continue
 		}
 		firstWordInfo, isMatch := wordIsMatch(firstWord, firstWordRule)
 		if !isMatch {
 			tryCount++
 			continue
 		}
-
-		secondPara := book.Paragraphs[paraIndex+1]
+		// 如果当前段落大于20个字，一个汉字算3个字符。，则从当前段落取第二个字，否则去下一个段落
+		secondPara := ""
+		if len(firstPara) > 60 || tryCount < 5 {
+			secondPara = firstPara
+		} else {
+			secondPara = book.Paragraphs[paraIndex+1]
+		}
 		secondWord, err := randString(secondPara)
 		if err != nil {
-			break
+			tryCount++
+			continue
 		}
 		secondWordRule := nextWordRule(firstWord)
 		secondWordInfo, isMatch := wordIsMatch(secondWord, secondWordRule)
 		if !isMatch {
+			tryCount++
+			continue
+		}
+		nameGroup := fmt.Sprintf("%s%s", firstWord, secondWord)
+		if isRead := source.IsReadWord(nameGroup); isRead {
+			tryCount++
+			continue
+		}
+		groupExplain, ok := source.WordGroupExplain(nameGroup)
+		if !ok {
 			tryCount++
 			continue
 		}
@@ -78,7 +113,14 @@ func filterNameByBook(book book.Content, surname string, count int) result.Info 
 		info.Stroke = surnameWordInfo.Stroke + firstWordInfo.Stroke + secondWordInfo.Stroke
 		info.Author = book.Author
 		info.Title = book.Title
-		info.Source = fmt.Sprintf("%s\n%s", firstPara, secondPara)
+		info.GroupExplain = groupExplain
+		info.GroupWord = nameGroup
+		if firstPara == secondPara {
+			info.Source = fmt.Sprintf("%s\n", firstPara)
+		} else {
+			info.Source = fmt.Sprintf("%s\n%s", firstPara, secondPara)
+		}
+		info.SingleExplain = append(info.SingleExplain, firstWordInfo.Explain, secondWordInfo.Explain)
 		break
 	}
 	return info
@@ -92,8 +134,7 @@ type rule struct {
 // 当前与规则是否匹配
 func wordIsMatch(word string, r rule) (explain.Chinese, bool) {
 	wordInfo := explain.NewExplain(word)
-	if word == "兮" ||
-		word == "曰" ||
+	if isWordBlack(word) ||
 		wordInfo.Stroke >= 10 ||
 		wordInfo.IsManyRead == true ||
 		wordInfo.PingZe != r.pingZe ||
@@ -101,6 +142,17 @@ func wordIsMatch(word string, r rule) (explain.Chinese, bool) {
 		return wordInfo, false
 	}
 	return wordInfo, true
+}
+
+func isWordBlack(word string) bool {
+	black := []string{"兮", "曰", "日", "死", "我", "玉", "人", "帝", "天", "小", "四", "星", "水", "成", "下", "门", "云", "城", "残", "二", "审", "夜", "乱",
+		"老", "旧", "国", "生", "龙", "未", "命", "官", "在", "五", "文", "凤", "杀", "坟", "克", "吊", "殄", "", "", "", "", "", "", "", "", "", ""}
+	for _, w := range black {
+		if w == word {
+			return true
+		}
+	}
+	return false
 }
 
 // 寻找下一个字的规则
@@ -121,19 +173,15 @@ func nextWordRule(word string) rule {
 func randString(para string) (string, error) {
 	rand.NewSource(time.Now().UnixNano())
 	para = removeNonChineseCharacters(para)
-	paraLen := utf8.RuneCountInString(para)
-	// 随机选取一个汉字
-	randomIndex := rand.Intn(paraLen)
-	var currentIndex int
-	for _, char := range para {
-		if utf8.RuneLen(char) == 3 {
-			if currentIndex == randomIndex {
-				return string(char), nil
-			}
-			currentIndex++
-		}
+	hanZiRunes := []rune(para)
+	if len(hanZiRunes) == 0 {
+		return "", errors.New("error")
 	}
-	return "", fmt.Errorf("找不到随机字符")
+	// 生成随机索引
+	randomIndex := rand.Intn(len(hanZiRunes))
+	// 根据随机索引获取对应的汉字
+	randomHanZi := string(hanZiRunes[randomIndex])
+	return randomHanZi, nil
 }
 
 // 定义正则表达式，匹配除汉字之外的字符

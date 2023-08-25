@@ -2,6 +2,7 @@
 package explain
 
 import (
+	"be-name/services/common/result"
 	"be-name/services/source"
 	"github.com/mozillazg/go-pinyin"
 )
@@ -9,10 +10,11 @@ import (
 type Chinese struct {
 	Word       string //单汉字
 	Pinyin     string
-	Stroke     int    //笔画
-	YunMu      string //韵母
-	PingZe     int    //平仄:音调1、2声为平，3、4声为仄 ，当前定义：1为平，2为仄
-	IsManyRead bool   //是否为多音字
+	Stroke     int                //笔画
+	YunMu      string             //韵母
+	PingZe     int                //平仄:音调1、2声为平，3、4声为仄 ，当前定义：1为平，2为仄
+	IsManyRead bool               //是否为多音字
+	Explain    result.WordExplain //具体的解释
 }
 
 func NewExplain(word string) Chinese {
@@ -34,7 +36,7 @@ func (c *Chinese) pkg() {
 		}
 	}
 
-	c.Stroke = source.GetStrokeCount(c.Word)
+	c.Stroke = source.WordStrokeCount(c.Word)
 
 	yunMus := pinyin.Pinyin(c.Word, pinyin.Args{
 		Style: pinyin.Finals,
@@ -54,5 +56,9 @@ func (c *Chinese) pkg() {
 		} else {
 			c.PingZe = 1
 		}
+	}
+	explain := source.WordExplain(c.Word)
+	if explain.Word == c.Word {
+		c.Explain = explain
 	}
 }

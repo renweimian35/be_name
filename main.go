@@ -16,7 +16,7 @@ var (
 )
 
 func main() {
-	serNum = "5"
+	serNum = "1,2,3,4,5,6"
 	nameCount = 3
 	surname = "阳"
 	flag.Usage = func() {
@@ -52,6 +52,18 @@ func init() {
 		log.Fatal(err)
 	}
 	err = source.LoadStroke()
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = source.LoadSingleWord()
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = source.LoadWordGroup()
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = source.LoadReadWord()
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -7,6 +7,7 @@
 /tmp/*
 /bin
 debug
+/config/read.txt
 
 # Editor
 *.swp
