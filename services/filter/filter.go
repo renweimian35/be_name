@@ -13,12 +13,10 @@ import (
 	"time"
 )
 
-const beNameCount = 5 //随机十个名字
-
 func BeName(books []book.Content, surname string, count int) {
 	rand.NewSource(time.Now().UnixNano())
 	var results []result.Info
-	maxNameCount := 10
+	maxNameCount := 5
 	nameCount := 0
 	for {
 		if nameCount == maxNameCount {
@@ -105,8 +103,13 @@ func filterNameByBook(book book.Content, surname string, count int) result.Info 
 		}
 		groupExplain, ok := source.WordGroupExplain(nameGroup)
 		if !ok {
-			tryCount++
-			continue
+			//再次判断是否出现在成语中
+			ex, ok := source.SelectWordForIdiom(nameGroup)
+			if !ok {
+				tryCount++
+				continue
+			}
+			groupExplain = ex
 		}
 		info.Name = fmt.Sprintf("%s%s%s", surname, firstWord, secondWord)
 		info.PinYin = fmt.Sprintf("%s%s%s", surnameWordInfo.Pinyin, firstWordInfo.Pinyin, secondWordInfo.Pinyin)
@@ -124,11 +127,6 @@ func filterNameByBook(book book.Content, surname string, count int) result.Info 
 		break
 	}
 	return info
-}
-
-type rule struct {
-	passYunMu string //不能为的韵母
-	pingZe    int    //平仄:音调1、2声为平，3、4声为仄 ，当前定义：1为平，2为仄
 }
 
 // 当前与规则是否匹配
@@ -155,6 +153,11 @@ func isWordBlack(word string) bool {
 	return false
 }
 
+type rule struct {
+	passYunMu string //不能为的韵母
+	pingZe    int    //平仄:音调1、2声为平，3、4声为仄 ，当前定义：1为平，2为仄
+}
+
 // 寻找下一个字的规则
 func nextWordRule(word string) rule {
 	info := explain.NewExplain(word)
@@ -169,7 +172,6 @@ func nextWordRule(word string) rule {
 }
 
 // 随机取出一个汉字
-// t:0表示从前半部分，1表示从后半部分，2表示无所谓
 func randString(para string) (string, error) {
 	rand.NewSource(time.Now().UnixNano())
 	para = removeNonChineseCharacters(para)

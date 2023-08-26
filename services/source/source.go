@@ -13,17 +13,21 @@ import (
 	"strings"
 )
 
-const sourcePath = "config/source.json"
-const strokePath = "config/utf8_Stroke.txt"
-const wordPath = "config/word.json"
-const wordGroupPath = "config/ci.json"
-const readWordPath = "config/read.txt"
+const (
+	sourcePath    = "config/source.json"
+	strokePath    = "config/utf8_Stroke.txt"
+	wordPath      = "config/word.json"
+	wordGroupPath = "config/ci.json"
+	readWordPath  = "config/read.txt"
+	idiomPath     = "config/idiom.json"
+)
 
 var sourceMap map[int][]book.Content
 var strokeMap = make(map[string]int) // 汉字笔画
 var wordMap = map[string]result.WordExplain{}
 var wordGroupMap = map[string]string{}
 var readWord = ""
+var idiomMap = map[string]string{} // 成语
 
 func LoadSource() error {
 	sourceMap = make(map[int][]book.Content)
@@ -195,4 +199,51 @@ func ResetReadWord(readWord string) {
 	if err != nil {
 		return
 	}
+}
+
+type idiom struct {
+	Word        string `json:"word"`
+	Explanation string `json:"explanation"`
+}
+
+func LoadIdiom() error {
+	w, err := os.ReadFile(idiomPath)
+	if err != nil {
+		return err
+	}
+	var im []idiom
+	if err = json.Unmarshal(w, &im); err != nil {
+		return err
+	}
+	for _, item := range im {
+		idiomMap[item.Word] = item.Explanation
+	}
+	return nil
+}
+
+// SelectWordForIdiom 查找两个字的名，是否出现在成语中，在的话返回
+func SelectWordForIdiom(wordGroup string) (string, bool) {
+	for key, value := range idiomMap {
+		if checkContains(key, wordGroup) {
+			return fmt.Sprintf("《%s》 %s", key, value), true
+		}
+	}
+	return "", false
+}
+
+// sortString 将字符串按字母顺序排序
+func sortString(s string) string {
+	runes := []rune(s)
+	for i := 0; i < len(runes)-1; i++ {
+		for j := 0; j < len(runes)-i-1; j++ {
+			if runes[j] > runes[j+1] {
+				runes[j], runes[j+1] = runes[j+1], runes[j]
+			}
+		}
+	}
+	return string(runes)
+}
+func checkContains(src, sub string) bool {
+	// 将两个字符串排序后比较
+	return strings.Contains(sortString(src), sortString(sub))
 }
